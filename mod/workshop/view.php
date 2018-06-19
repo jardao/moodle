@@ -99,12 +99,44 @@ if ($eval) {
 
 $output = $PAGE->get_renderer('mod_workshop');
 
+/* BEGIN ARDAO */
+
+if ($a == 'downloadall') {
+    $res = $workshop->view($a);
+
+    echo $output->header();
+    echo $output->container($res);
+    echo $output->footer();
+
+    die();
+}
+
+/* END ARDAO*/
+
 /// Output starts here
 
 echo $output->header();
 echo $output->heading_with_help(format_string($workshop->name), 'userplan', 'workshop');
 echo $output->heading(format_string($currentphasetitle), 3, null, 'mod_workshop-userplanheading');
 echo $output->render($userplan);
+
+/* BEGIN ARDAO */
+
+if (has_capability('mod/workshop:viewallsubmissions', $PAGE->context))
+{
+$url = new moodle_url('/mod/workshop/view.php', array('id'=>$id, 'a'=>'downloadall'));
+//echo $url;
+$dnl = get_string('downloadall', 'workshop');
+//echo '<br>'.$dnl;
+$dnl2 = get_string('downloadallsubmissions', 'workshop');
+//echo '<br>'.$dnl2;
+$dnl3 = get_string('daystoday', 'workshop');
+//echo '<br>'.$dnl3;
+echo $OUTPUT->single_button($url, get_string('downloadallsubmissions', 'workshop'));
+/*echo $OUTPUT->single_button($url, get_string('downloadall', 'workshop'));*/
+}
+
+/* END ARDAO */
 
 switch ($workshop->phase) {
 case workshop::PHASE_SETUP:

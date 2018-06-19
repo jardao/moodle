@@ -3438,6 +3438,136 @@ class workshop {
         return substr($fullurl->out(), strlen($baseurl));
     }
 
+	/* BEGIN ARDAO */
+
+/**
+ * Download a zip file of all workshopment submissions.
+ *
+ * @return string - If an error occurs, this will contain the error page.
+ */
+protected function download_submissions() {
+    global $CFG, $DB;
+
+    // More efficient to load this here.
+    require_once($CFG->libdir.'/filelib.php');
+
+    has_capability('mod/workshop:viewallsubmissions', $this->context);
+
+    // Load all users with submit.
+    $students = get_enrolled_users($this->context, "mod/workshop:submit");
+
+    // Build a list of files to zip.
+    $filesforzipping = array();
+    $fs = get_file_storage();
+
+    $groupmode = groups_get_activity_groupmode($this->cm);
+    // All users.
+    $groupid = 0;
+    $groupname = '';
+    if ($groupmode) {
+        $groupid = groups_get_activity_group($this->cm, true);
+        $groupname = groups_get_group_name($groupid).'-';
+    }
+
+    // Construct the zip file name.
+    $filename = clean_filename($this->course->shortname . '-' .
+                               $this->id . '-' .
+                               $groupname.$this->cm->id. '.zip');
+
+    // Get all the files for each student.
+
+    foreach ($students as $student) {
+        $userid = $student->id;
+
+        if ((groups_is_member($groupid, $userid) or !$groupmode or !$groupid)) {
+            // Get the plugins to add their own files to the zip.
+
+            $groupname = '';
+            $submission = current($this->get_submissions($userid, $groupid));  //Only one submission from user
+
+            $prefix = str_replace('_', ' ', $groupname . fullname($student));
+
+            if ($submission) {
+                if ($files  = $fs->get_area_files($this->context->id, 'mod_workshop', 'submission_attachment', $submission->id)) {
+                  foreach($files as $file){
+                      if ($file->get_mimetype() && $file->get_filename() != ".") {
+                          $prefixedfilename = clean_filename(//$prefix .
+                                                             //'_' .
+                                                             //$file->get_mimetype() .
+                                                             //'_' .
+                                                             $file->get_filename());
+
+                          $filesforzipping[$prefixedfilename] = $file;
+                      }
+                  }
+                }
+            }
+        }
+    }
+
+    $result = '';
+    if (count($filesforzipping) == 0) {
+        $result = get_string('nosubmissions', 'workshop');
+    } else if ($zipfile = $this->pack_files($filesforzipping)) {
+        //$this->add_to_log('download all submissions', get_string('downloadall', 'workshop'));
+        // Send file and delete after sending.
+        send_temp_file($zipfile, $filename);
+        // We will not get here - send_temp_file calls exit.
+    }
+    return $result;
+}
+
+/**
+ * Display the assignment, used by view.php
+ *
+ * The assignment is displayed differently depending on your role,
+ * the settings for the assignment and the status of the assignment.
+ *
+ * @param string $action The current action if any.
+ * @return string - The page output.
+ */
+public function view($action='') {
+    $o = "";
+
+    if ($action == 'downloadall') {
+        $o .= $this->download_submissions();
+    }
+
+    return $o;
+}
+
+/**
+ * Call the static version of this function
+ *
+ * @param int $userid The userid to lookup
+ * @return int The unique id
+ */
+public function get_uniqueid_for_user($userid) {
+    return self::get_uniqueid_for_user_static($this->cm->id, $userid);
+}
+
+/**
+ * Generate zip file from array of given files.
+ *
+ * @param array $filesforzipping - array of files to pass into archive_to_pathname.
+ *                                 This array is indexed by the final file name and each
+ *                                 element in the array is an instance of a stored_file object.
+ * @return path of temp file - note this returned file does
+ *         not have a .zip extension - it is a temp file.
+ */
+protected function pack_files($filesforzipping) {
+    global $CFG;
+    // Create path for new zip file.
+    $tempzip = tempnam($CFG->tempdir . '/', 'workshop_');
+    // Zip files.
+    $zipper = new zip_packer();
+    if ($zipper->archive_to_pathname($filesforzipping, $tempzip)) {
+        return $tempzip;
+    }
+    return false;
+}
+/* END ARDAO */
+
     /**
      * Removes all user data related to assessments (including allocations).
      *

@@ -412,6 +412,8 @@ $string['workshop:viewreviewernames'] = 'View reviewer names';
 $string['yourassessmentfor'] = 'Your assessment for {$a}';
 $string['yourgrades'] = 'Your grades';
 $string['yoursubmission'] = 'Your submission';
+$string['downloadall'] = 'Download all submissions';
+$string['downloadallsubmissions'] = 'Download all submissions in a zip file.';
 
 // Deprecated since Moodle 3.4.
 $string['err_unknownfileextension'] = 'Unknown file extension: {$a}';
