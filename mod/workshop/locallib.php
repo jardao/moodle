@@ -38,7 +38,7 @@ require_once($CFG->libdir . '/filelib.php');
  *
  * This wraps the workshop database record with a set of methods that are called
  * from the module itself. The class should be initialized right after you get
- * $workshop, $cm and $course records at the begining of the script.
+ * $workshop, $dbrecord and $course records at the begining of the script.
  */
 class workshop {
 
@@ -59,8 +59,8 @@ class workshop {
 
     /** @var stdclass workshop record from database */
     public $dbrecord;
-
-    /** @var cm_info course module record */
+	
+	/** @var cm_info course module record */
     public $cm;
 
     /** @var stdclass course record */
@@ -125,8 +125,8 @@ class workshop {
 
     /** @var int number of allowed submission attachments and the files embedded into submission */
     public $nattachments;
-
-     /** @var string list of allowed file types that are allowed to be embedded into submission */
+	
+	/** @var string list of allowed file types that are allowed to be embedded into submission */
     public $submissionfiletypes = null;
 
     /** @var bool allow submitting the work after the deadline */
@@ -164,8 +164,8 @@ class workshop {
 
     /** @var int maximum number of overall feedback attachments */
     public $overallfeedbackfiles;
-
-    /** @var string list of allowed file types that can be attached to the overall feedback */
+	
+	/** @var string list of allowed file types that can be attached to the overall feedback */
     public $overallfeedbackfiletypes = null;
 
     /** @var int maximum size of one file attached to the overall feedback */
@@ -186,8 +186,8 @@ class workshop {
     /**
      * Initializes the workshop API instance using the data from DB
      *
-     * Makes deep copy of all passed records properties.
-     *
+     * Makes deep copy of all passed records properties. 
+	 *
      * For unit testing only, $cm and $course may be set to null. This is so that
      * you can test without having any real database objects if you like. Not all
      * functions will work in this situation.
@@ -420,8 +420,8 @@ class workshop {
         }
         return $a;
     }
-
-    /**
+	
+	 /**
      * Converts the argument into an array (list) of file extensions.
      *
      * The list can be separated by whitespace, end of lines, commas colons and semicolons.
@@ -468,7 +468,7 @@ class workshop {
 
         return $extensions;
     }
-
+	
     /**
      * Cleans the user provided list of file extensions.
      *
@@ -885,8 +885,8 @@ class workshop {
 
         return $DB->get_records_sql($sql, array_merge($params, $sortparams), $limitfrom, $limitnum);
     }
-
-    /**
+	 /**************************** ANIADIDO TODO NUEVO *************************************/
+	/**
      * Returns submissions from this workshop that are viewable by the current user (except example submissions).
      *
      * @param mixed $authorid int|array If set to [array of] integer, return submission[s] of the given user[s] only
@@ -947,7 +947,6 @@ class workshop {
         }
         return array($submissions, $totalcount);
     }
-
 
     /**
      * Returns a submission record with the author's data
@@ -1483,7 +1482,7 @@ class workshop {
     }
 
     /**
-     * Delete assessment record or records.
+     * Delete assessment record or records
      *
      * Removes associated records from the workshop_grades table, too.
      *
@@ -2028,7 +2027,7 @@ class workshop {
                 $sqlsort[] = $sqlsortfieldname . ' ' . $sqlsortfieldhow;
             }
             $sqlsort = implode(',', $sqlsort);
-            $picturefields = user_picture::fields('u', array(), 'userid');
+			$picturefields = user_picture::fields('u', array(), 'userid');
             $sql = "SELECT $picturefields, s.title AS submissiontitle, s.timemodified AS submissionmodified,
                            s.grade AS submissiongrade, ag.gradinggrade
                       FROM {user} u
@@ -2079,7 +2078,7 @@ class workshop {
 
         // get the user details for all reviewers of the displayed participants
         $reviewers = array();
-
+		
         if ($submissions) {
             list($submissionids, $params) = $DB->get_in_or_equal(array_keys($submissions), SQL_PARAMS_NAMED);
             list($sort, $sortparams) = users_order_by_sql('r');
@@ -3274,8 +3273,8 @@ class workshop {
         if ($count > 0) {
             $finalgrade = grade_floatval($sumgrades / $count);
         }
-
-        // Event information.
+		
+		// Event information.
         $params = array(
             'context' => $this->context,
             'courseid' => $this->course->id,
@@ -3288,7 +3287,7 @@ class workshop {
                 'currentgrade' => $current,
                 'finalgrade' => $finalgrade
             );
-
+			
             // we need to save new calculation into the database
             if (is_null($agid)) {
                 // no aggregation record yet
@@ -3307,7 +3306,7 @@ class workshop {
                 $record->gradinggrade = $finalgrade;
                 $record->timegraded = $timegraded;
                 $DB->update_record('workshop_aggregations', $record);
-                $params['objectid'] = $agid;
+				$params['objectid'] = $agid;
                 $event = \mod_workshop\event\assessment_reevaluated::create($params);
                 $event->trigger();
             }
@@ -3434,11 +3433,11 @@ class workshop {
             $baseurl = new moodle_url('/mod/workshop/');
             $baseurl = $baseurl->out();
         }
-
+		
         return substr($fullurl->out(), strlen($baseurl));
     }
-
-    /**
+	
+	/**
      * Removes all user data related to assessments (including allocations).
      *
      * This includes assessments of example submissions as long as they are not
@@ -3489,6 +3488,134 @@ class workshop {
 
         $DB->set_field('workshop', 'phase', self::PHASE_SETUP, array('id' => $this->id));
         $this->phase = self::PHASE_SETUP;
+    }
+
+    
+    /**
+     * Download a zip file of all workshopment submissions.
+     *
+     * @return string - If an error occurs, this will contain the error page.
+     */
+    protected function download_submissions() {
+        global $CFG, $DB;
+
+        // More efficient to load this here.
+        require_once($CFG->libdir.'/filelib.php');
+
+        require_capability('mod/workshop:viewallassessments', $this->context);
+
+        // Load all users with submit.
+        $students = get_enrolled_users($this->context, "mod/workshop:submit");
+
+        // Build a list of files to zip.
+        $filesforzipping = array();
+        $fs = get_file_storage();
+
+        $groupmode = groups_get_activity_groupmode($this->cm);
+        // All users.
+        $groupid = 0;
+        $groupname = '';
+        if ($groupmode) {
+            $groupid = groups_get_activity_group($this->cm, true);
+            $groupname = groups_get_group_name($groupid).'-';
+        }
+
+        // Construct the zip file name.
+        $filename = clean_filename($this->course->shortname . '-' .
+                                   $this->id . '-' .
+                                   $groupname.$this->cm->id. '.zip');
+
+        // Get all the files for each student.
+        
+        foreach ($students as $student) {
+            $userid = $student->id;
+
+            if ((groups_is_member($groupid, $userid) or !$groupmode or !$groupid)) {
+                // Get the plugins to add their own files to the zip.
+
+                $groupname = '';
+                $submission = current($this->get_submissions($userid, $groupid));  //Only one submission from user
+
+                $prefix = str_replace('_', ' ', $groupname . fullname($student));
+                
+                if ($submission) {
+                    if ($files  = $fs->get_area_files($this->context->id, 'mod_workshop', 'submission_attachment', $submission->id)) {
+                      foreach($files as $file){
+                          if ($file->get_mimetype() && $file->get_filename() != ".") {
+                              $prefixedfilename = clean_filename(//$prefix .
+                                                                 //'_' .
+                                                                 //$file->get_mimetype() .
+                                                                 //'_' .
+                                                                 $file->get_filename());
+                                                                 
+                              $filesforzipping[$prefixedfilename] = $file;
+                          }
+                      }
+                    }
+                }
+            }
+        }
+        
+        $result = '';
+        if (count($filesforzipping) == 0) {
+            $result = get_string('nosubmissions', 'workshop');
+        } else if ($zipfile = $this->pack_files($filesforzipping)) {
+            //$this->add_to_log('download all submissions', get_string('downloadall', 'workshop'));
+            // Send file and delete after sending.
+            send_temp_file($zipfile, $filename);
+            // We will not get here - send_temp_file calls exit.
+        }
+        return $result;
+    }
+    
+    /**
+     * Display the assignment, used by view.php
+     *
+     * The assignment is displayed differently depending on your role,
+     * the settings for the assignment and the status of the assignment.
+     *
+     * @param string $action The current action if any.
+     * @return string - The page output.
+     */
+    public function view($action='') {
+        $o = "";
+        
+        if ($action == 'downloadall') {
+            $o .= $this->download_submissions();
+        }
+        
+        return $o;
+    }
+    
+    /**
+     * Call the static version of this function
+     *
+     * @param int $userid The userid to lookup
+     * @return int The unique id
+     */
+    public function get_uniqueid_for_user($userid) {
+        return self::get_uniqueid_for_user_static($this->cm->id, $userid);
+    }
+    
+    /**
+     * Generate zip file from array of given files.
+     *
+     * @param array $filesforzipping - array of files to pass into archive_to_pathname.
+     *                                 This array is indexed by the final file name and each
+     *                                 element in the array is an instance of a stored_file object.
+     * @return path of temp file - note this returned file does
+     *         not have a .zip extension - it is a temp file.
+     */
+    protected function pack_files($filesforzipping) {
+        global $CFG;
+        // Create path for new zip file.
+        $tempzip = tempnam($CFG->tempdir . '/', 'workshop_');
+        // Zip files.
+        $zipper = new zip_packer();
+        if ($zipper->archive_to_pathname($filesforzipping, $tempzip)) {
+            return $tempzip;
+        }
+        return false;
     }
 }
 
@@ -3906,7 +4033,7 @@ class workshop_user_plan implements renderable {
             }
         }
 
-        // Add phase switching actions.
+        // Add phase switching actions
         if (has_capability('mod/workshop:switchphase', $workshop->context, $userid)) {
             $nextphases = array(
                 workshop::PHASE_SETUP => workshop::PHASE_SUBMISSION,
@@ -4004,7 +4131,7 @@ abstract class workshop_submission_base {
      * Usually this is called by the contructor but can be called explicitely, too.
      */
     public function anonymize() {
-        $authorfields = explode(',', user_picture::fields());
+		$authorfields = explode(',', user_picture::fields());
         foreach ($authorfields as $field) {
             $prefixedusernamefield = 'author' . $field;
             unset($this->{$prefixedusernamefield});
@@ -4558,8 +4685,8 @@ class workshop_grading_report implements renderable {
     public function get_options() {
         return $this->options;
     }
-
-    /**
+	
+	/**
      * Prepare the data to be exported to a external system via Web Services.
      *
      * This function applies extra capabilities checks.
@@ -4710,3 +4837,4 @@ class workshop_final_grades implements renderable {
     /** @var object the infor from the gradebook about the grade for assessment */
     public $assessmentgrade = null;
 }
+

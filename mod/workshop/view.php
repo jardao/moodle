@@ -37,6 +37,7 @@ $perpage    = optional_param('perpage', null, PARAM_INT);
 $sortby     = optional_param('sortby', 'lastname', PARAM_ALPHA);
 $sorthow    = optional_param('sorthow', 'ASC', PARAM_ALPHA);
 $eval       = optional_param('eval', null, PARAM_PLUGIN);
+$a          = optional_param('a', null, PARAM_CLEAN);
 
 if ($id) {
     $cm             = get_coursemodule_from_id('workshop', $id, 0, false, MUST_EXIST);
@@ -53,9 +54,7 @@ require_capability('mod/workshop:view', $PAGE->context);
 
 $workshop = new workshop($workshoprecord, $cm, $course);
 
-$PAGE->set_url($workshop->view_url());
-
-// Mark viewed.
+// Mark viewed
 $workshop->set_module_viewed();
 
 // If the phase is to be switched, do it asap. This just has to happen after triggering
@@ -99,12 +98,41 @@ if ($eval) {
 
 $output = $PAGE->get_renderer('mod_workshop');
 
+
+/*
+* TEST DOWNLOAD ALL
+*/
+if ($a == 'downloadall') {
+    $res = $workshop->view($a);
+    
+    echo $output->header();
+    echo $output->container($res);
+    echo $output->footer();
+    
+    die();
+}
+
 /// Output starts here
 
 echo $output->header();
 echo $output->heading_with_help(format_string($workshop->name), 'userplan', 'workshop');
 echo $output->heading(format_string($currentphasetitle), 3, null, 'mod_workshop-userplanheading');
 echo $output->render($userplan);
+
+$url = new moodle_url('/mod/workshop/view.php', array('id'=>$id, 'a'=>'downloadall'));
+echo $url;
+
+
+/*$dnl = get_string('downloadall', 'workshop');
+echo '<br>'.$dnl;
+$dnl2 = get_string('downloadallsubmissions', 'workshop');
+echo '<br>'.$dnl2;
+$dnl3 = get_string('daystoday', 'workshop');
+echo '<br>'.$dnl3;
+*/
+
+echo $OUTPUT->single_button($url, get_string('downloadallsubmissions', 'workshop'));
+echo $OUTPUT->single_button($url, get_string('downloadall', 'workshop'));
 
 switch ($workshop->phase) {
 case workshop::PHASE_SETUP:
@@ -222,7 +250,7 @@ case workshop::PHASE_SUBMISSION:
         }
 
         print_collapsible_region_start('', 'workshop-viewlet-allsubmissions', get_string('submissionsreport', 'workshop'));
-
+		
         $perpage = get_user_preferences('workshop_perpage', 10);
         $data = $workshop->prepare_grading_report_data($USER->id, $groupid, $page, $perpage, $sortby, $sorthow);
         if ($data) {
@@ -259,6 +287,7 @@ case workshop::PHASE_SUBMISSION:
         }
         print_collapsible_region_end();
     }
+
     break;
 
 case workshop::PHASE_ASSESSMENT:
@@ -307,8 +336,8 @@ case workshop::PHASE_ASSESSMENT:
             $reportopts->sorthow                = $sorthow;
             $reportopts->showsubmissiongrade    = false;
             $reportopts->showgradinggrade       = false;
-            $reportopts->workshopphase          = $workshop->phase;
-
+		    $reportopts->workshopphase          = $workshop->phase;
+			
             print_collapsible_region_start('', 'workshop-viewlet-gradereport', get_string('gradesreport', 'workshop'));
             echo $output->box_start('generalbox gradesreport');
             echo $output->container(groups_print_activity_menu($workshop->cm, $PAGE->url, true), 'groupwidget');
@@ -457,8 +486,8 @@ case workshop::PHASE_EVALUATION:
             $reportopts->sorthow                = $sorthow;
             $reportopts->showsubmissiongrade    = true;
             $reportopts->showgradinggrade       = true;
-            $reportopts->workshopphase          = $workshop->phase;
-
+			$reportopts->workshopphase          = $workshop->phase;
+			
             print_collapsible_region_start('', 'workshop-viewlet-gradereport', get_string('gradesreport', 'workshop'));
             echo $output->box_start('generalbox gradesreport');
             echo $output->container(groups_print_activity_menu($workshop->cm, $PAGE->url, true), 'groupwidget');
@@ -489,8 +518,8 @@ case workshop::PHASE_EVALUATION:
         echo $output->container_start('toolboxaction');
         echo $output->render($btn);
         echo $output->help_icon('clearassessments', 'workshop');
-
-        echo $OUTPUT->pix_icon('i/risk_dataloss', get_string('riskdatalossshort', 'admin'));
+        
+		echo $OUTPUT->pix_icon('i/risk_dataloss', get_string('riskdatalossshort', 'admin'));
         echo $output->container_end();
 
         echo $output->box_end();
@@ -574,7 +603,7 @@ case workshop::PHASE_CLOSED:
             $reportopts->sorthow                = $sorthow;
             $reportopts->showsubmissiongrade    = true;
             $reportopts->showgradinggrade       = true;
-            $reportopts->workshopphase          = $workshop->phase;
+			$reportopts->workshopphase          = $workshop->phase;
 
             print_collapsible_region_start('', 'workshop-viewlet-gradereport', get_string('gradesreport', 'workshop'));
             echo $output->box_start('generalbox gradesreport');
